@@ -2,7 +2,6 @@
 
 set -euo pipefail
 
-# TODO: Ensure this is the correct GitHub homepage where releases can be downloaded for wash.
 GH_REPO="https://github.com/wasmCloud/wasmCloud"
 TOOL_NAME="wash"
 TOOL_TEST="wash --help"
@@ -26,23 +25,27 @@ sort_versions() {
 
 list_github_tags() {
 	git ls-remote --tags --refs "$GH_REPO" |
-		grep -o 'refs/tags/.*' | cut -d/ -f3- |
-		sed 's/^v//' # NOTE: You might want to adapt this sed to remove non-version strings from tags
+		grep -Eo 'refs/tags/(wash-cli-v|wash-v).*' | cut -d/ -f3- |
+		sed -E 's/^wash-(cli)?-?v//' | uniq # NOTE: You might want to adapt this sed to remove non-version strings from tags
 }
 
 list_all_versions() {
-	# TODO: Adapt this. By default we simply list the tag names from GitHub releases.
-	# Change this function if wash has other means of determining installable versions.
 	list_github_tags
 }
 
 download_release() {
-	local version filename url
+	local version target filename path url
 	version="$1"
-	filename="$2"
+	target="$2"
+	filename="$3"
 
-	# TODO: Adapt the release URL convention for wash
-	url="$GH_REPO/archive/v${version}.tar.gz"
+	if printf '%s\n' "0.40.0" "$version" | sort -V | head -n1 | grep -q "^0.40.0$"; then
+		path="wash-v${version}"
+	else
+		path="wash-cli-v${version}"
+	fi
+
+	url="$GH_REPO/releases/download/${path}/wash-${target}"
 
 	echo "* Downloading $TOOL_NAME release $version..."
 	curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
@@ -61,7 +64,6 @@ install_version() {
 		mkdir -p "$install_path"
 		cp -r "$ASDF_DOWNLOAD_PATH"/* "$install_path"
 
-		# TODO: Assert wash executable exists.
 		local tool_cmd
 		tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
 		test -x "$install_path/$tool_cmd" || fail "Expected $install_path/$tool_cmd to be executable."
